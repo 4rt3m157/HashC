@@ -16,8 +16,13 @@ typedef struct{
 	unsigned char hash[HASH_SIZE];
 }Entry;
 
-Entry* createEntries(char* fileName, char* algo);
+Entry* createEntries(char* fileName, const EVP_MD * algo_hashage);
+
+int hashWord(char * mot_original, u_char * hash_du_mot, u_int taille_hash, const EVP_MD * algo_hashage );
+int read_and_hash(char * fileName, Entry* entryList, const EVP_MD * algo_hashage);
+
 void freeWords(Entry* entryList, uint count);
+void printHash(const unsigned char* hash, unsigned int len);
 
 char* readLine(char* text);
 char* readHash(char* line);
