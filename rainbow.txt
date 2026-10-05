@@ -1,5 +1,0 @@
-4423456789	numer
-jean	name
-banana	fruit
-table meuble
-mac computer
