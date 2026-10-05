@@ -23,6 +23,14 @@ char* extractFileToMem(char* fileName){
 	return myRainbowTable;
 }
 
+char* splitHashText(char* hashTable){
+	cuttingTable = strtok(hashTable, "\t");
+	while(cuttingTable != NULL){
+		printf("%s\n" cuttingTable);
+		strtok(NULL , cuttingTable);
+	}
+}
+
 int main() {
 
 	int i = 0;
@@ -30,9 +38,12 @@ int main() {
 
 	hashTable = extractFileToMem("./rainbow.txt");
 	printf("%s", hashTable);
+	printf("%ld", sizeof(hashTable));
+	splitHashText(hashTable);
 //	for (int j = 0; j < (sizeof(hashtable) / 8), j++){
-		printf("%d", sizeof(hashTable) / 8);	
 //	}
+	
+	//printf("%c", hashTable[11]);
 	free(hashTable); //free the extractFileToMem's allocated var 
 	return i;
 
