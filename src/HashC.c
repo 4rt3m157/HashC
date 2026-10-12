@@ -1,6 +1,4 @@
 #include "HashC.h"
-#include <stdio.h>
-#include <string.h>
 
 // read and load, reaload ? ca m'fait rire je gardes
 int reaload_Password(char *passwordsPath, EVP_MD *algo,
