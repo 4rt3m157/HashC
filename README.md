@@ -33,6 +33,12 @@ docker run --rm -it hashc
 ## Fichiers
 
 `HashC.h` structures (`Entry`, `HashTable`), prototypes 
+
+
 `HashC.c` génération, chargement, recherche, `main` 
+
+
 `utils.c` calcul de condensat, conversion hexa, affichage
+
+
 `free.c` libération mémoire
