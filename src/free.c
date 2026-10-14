@@ -6,7 +6,7 @@
  * @return void
  */
 void free_Words(Entry *entrie) {
-  free(entrie->word); 
+  free(entrie->word);
   free(entrie);
 }
 
