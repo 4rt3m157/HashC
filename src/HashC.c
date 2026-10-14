@@ -1,7 +1,8 @@
 #include "HashC.h"
+#include <string.h>
 
 HashTable *table_new(void) {
-    HashTable *hashTable = malloc(sizeof *hashTable);
+    HashTable *hashTable = calloc(1, sizeof *hashTable);
     return hashTable;
 }
 
@@ -14,6 +15,11 @@ int reaload_Password(char *passwordsPath, EVP_MD *algo,
 
     // creation de la table si le fichier est ok
     HashTable *hashTable = table_new();
+    if (!hashTable) {
+        fclose(passwordFile);
+        return -1;
+    }
+
     char *ligne = NULL;
     size_t size = 0;
     int ok = 1;
@@ -24,10 +30,11 @@ int reaload_Password(char *passwordsPath, EVP_MD *algo,
             continue;
         if (add_Entry_to_Table(hashTable, ligne, algo) != 0) {
             ok = 0;
-            nbLigne++;
+            continue;
         }
+        nbLigne++;
         if (nbLigne >= MAX_PASSWORD) {
-            printf("RAM Protection : Only %d password loaded.");
+            fprintf(stderr, "RAM Protection : Only %d password loaded.\n", nbLigne);
             break;
         }
     }
@@ -51,7 +58,7 @@ int add_Entry_to_Table(HashTable *tableHash, char *mot, EVP_MD *algo) {
             free_Words(entrie);
             ok = -1;
         }
-        if (ok) {
+        if (ok == 0) {
             unsigned int index = get_field_index(entrie->hash);
             entrie->suivant = tableHash->field[index];
             tableHash->field[index] = entrie;
@@ -62,12 +69,17 @@ int add_Entry_to_Table(HashTable *tableHash, char *mot, EVP_MD *algo) {
 }
 
 int find_Hash(HashTable *tableHash, char *hashToFind) {
-    unsigned char hash[EVP_MAX_MD_SIZE];
-    int sizeHash = transformStringtoHex(hashToFind, strlen(hashSize), sizeof hash);
-    if (sizeHash < 16) {
+    int hexLen = (int) strlen(hashToFind);
+
+    // condensat hexa valide : longueur paire, au moins MD5 (32), au plus SHA-512 (128)
+    if (hexLen < 32 || hexLen % 2 != 0 || hexLen / 2 > EVP_MAX_MD_SIZE) {
         printf("%s : hash invalide\n", hashToFind);
         return -1;
     }
+
+    unsigned char hash[EVP_MAX_MD_SIZE];
+    int sizeHash = hexLen / 2;
+    transformStringtoHex(hashToFind, hexLen, (char *) hash);
 
     unsigned int index = get_field_index(hash);
 
@@ -77,6 +89,7 @@ int find_Hash(HashTable *tableHash, char *hashToFind) {
             memcmp(entrie->hash, hash, sizeHash) == 0) {
             printf("%s : %s\n", hashToFind, entrie->word);
             found = 1;
+            break; // une seule ligne de sortie par condensat lu
         }
     }
     if (!found)
@@ -87,7 +100,10 @@ int find_Hash(HashTable *tableHash, char *hashToFind) {
 
 int create_Binary_Dictionary(char *fileName, HashTable *tableHash) {
     FILE *dictionaryFile = fopen(fileName, "wb+");
-    int ok = 0;
+    if (!dictionaryFile)
+        return 0; // 0 = echec, meme convention que le reste de la fonction
+
+    int ok = 1;
 
     for (size_t i = 0; i < MAX_HASHTABLE; i++) {
         Entry *entrie = tableHash->field[i];
@@ -107,59 +123,94 @@ int create_Binary_Dictionary(char *fileName, HashTable *tableHash) {
     return ok;
 }
 
-int load_Binary_Dictionnary(char *binaryPath, HashTable **ptrTable){
+int load_Binary_Dictionnary(char *binaryPath, HashTable **ptrTable) {
     FILE *dictionaryFile = fopen(binaryPath, "rb");
-    if (dictionaryFile != NULL) {
+    if (dictionaryFile == NULL)
+        return -1;
+
+    HashTable *tableHash = table_new();
+    if (!tableHash) {
+        fclose(dictionaryFile);
         return -1;
     }
-    int ok = 1;
-    int field;
 
-    while (ok) {
-        Entry *entrie = malloc(sizeof(*entrie));
+    // true seulement si une entree a ete entamee (sizeMot lu) puis n'a pas pu etre finie :
+    // une fin de fichier entre deux entrees est normale, une coupure au milieu d'une entree non.
+    int corrompu = 0;
+
+    while(1) {
         unsigned int sizeMot = 0;
         unsigned char sizeHash = 0;
 
-        // OK = 1 si il a réussit à tout écrire
-        ok = fread(&sizeMot, sizeof(sizeMot), 1, dictionaryFile) == 1 &&
-             fread(entrie->word, 1, sizeMot, dictionaryFile) == sizeMot &&
-             fread(&sizeHash, sizeof(sizeHash), 1, dictionaryFile) == 1 &&
-             fread(entrie->hash, 1, sizeHash, dictionaryFile) == sizeHash;
-
-        if (ok) {
-            unsigned int index = get_field_index(entrie->hash);
-            if (index) {
-                entrie->suivant = tableHash->field[index];
-                tableHash->field[index] = entrie;
-            }
-            ok = 0;
+        if (fread(&sizeMot, sizeof sizeMot, 1, dictionaryFile) != 1) {
+            if (!feof(dictionaryFile))
+                corrompu = 1; // erreur de lecture, pas juste une fin de fichier
+            break;
         }
+
+        Entry *entrie = calloc(1, sizeof *entrie);
+        if (!entrie) {
+            corrompu = 1;
+            break;
+        }
+
+        entrie->word = malloc((size_t) sizeMot + 1);
+        if (!entrie->word) {
+            free(entrie);
+            corrompu = 1;
+            break;
+        }
+
+        int ok_entree =
+            fread(entrie->word, 1, sizeMot, dictionaryFile) == sizeMot &&
+            fread(&sizeHash, sizeof sizeHash, 1, dictionaryFile) == 1 &&
+            sizeHash <= EVP_MAX_MD_SIZE &&
+            fread(entrie->hash, 1, sizeHash, dictionaryFile) == sizeHash;
+
+        if (!ok_entree) {
+            free(entrie->word);
+            free(entrie);
+            corrompu = 1; // sizeMot promettait une entree complete : elle est coupee
+            break;
+        }
+
+        entrie->word[sizeMot] = '\0';
+        entrie->sizeHash = sizeHash;
+
+        unsigned int index = get_field_index(entrie->hash);
+        entrie->suivant = tableHash->field[index];
+        tableHash->field[index] = entrie;
     }
 
     fclose(dictionaryFile);
-    return ok;
+
+    if (corrompu) {
+        free_Table(tableHash);
+        return -1;
+    }
+
+    *ptrTable = tableHash;
+    return 0;
 }
 
 int check_Generation(char *passwordsPath, char *outputPath, EVP_MD *algo) {
     HashTable *hashTable = NULL;
-    int retour = 1;
-    if (reaload_Password(passwordsPath, algo, &hashTable) != 0) {
+
+    if (reaload_Password(passwordsPath, algo, &hashTable) != 1) {
         fprintf(stderr, "erreur lecture/hashage %s\n", passwordsPath);
-        retour = -1;
+        return -1;
     }
-    if (retour != 0) {
-        retour = create_Binary_Dictionary(outputPath, hashTable);
-        free_Table(hashTable);
-    }
-    if (retour != 0) {
+
+    int ecrit_ok = create_Binary_Dictionary(outputPath, hashTable);
+    free_Table(hashTable);
+
+    if (!ecrit_ok) {
         fprintf(stderr, "Erreur écriture %s\n", outputPath);
-        retour = -1;
+        return -1;
     }
-    if (retour != 0) {
-        printf("HashTable écrite dans %s\n", outputPath);
-        retour = 0;
-    }
-    return retour;
+
+    fprintf(stderr, "HashTable écrite dans %s\n", outputPath);
+    return 0;
 }
 
 int main(int argc, char **argv) {
@@ -206,7 +257,6 @@ int main(int argc, char **argv) {
                     algo = EVP_get_digestbyname(optarg);
                 } else {
                     fprintf(stderr, "Algorithme inconnu, MD5 par défaut\n");
-                    /* algo reste MD5 */
                 }
                 break;
             case 't':
@@ -219,8 +269,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    /* Mode : une seule lettre, G ou L */
-    char mode = (argv[1][1] == '\0') ? argv[1][0] : '?';
+    char mode = (argv[1][1] == '\0') ? argv[1][0] : '?'; // Garder qu'une lettre
 
     switch (mode) {
         case 'G':
@@ -228,7 +277,6 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "G : -i et -o\n%s\n", help);
                 return 1;
             }
-            /* log sur stderr : stdout doit rester propre */
             fprintf(stderr, "Mode G : input=%s output=%s\n", passwordPath, binaryPath);
 
             if (check_Generation(passwordPath, binaryPath, algo) != 0) {

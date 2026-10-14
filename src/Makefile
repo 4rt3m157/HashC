@@ -1,5 +1,4 @@
 hash: HashC.o utils.o free.o
-	sudo apt install libssl-dev
 	gcc -o t3c HashC.o utils.o free.o -lcrypto
 
 HashC.o: HashC.c HashC.h
