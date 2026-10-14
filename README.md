@@ -11,7 +11,10 @@ make
 ```
 
 Nécessite `libssl-dev` (headers OpenSSL).
-
+### Exemple usage :
+ ./t3c G -i ../wordlist.txt -o ../word.bin
+ ./t3c L -t ../word.bin
+ e0deff349b2c61f5f796ccaa344a4930
 ### Docker
 
 ```
