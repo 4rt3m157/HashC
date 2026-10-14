@@ -12,7 +12,8 @@ Impossible que les outils d'aujourd'hui n'ai pas pensés à une meilleure implé
 Voilà, les HashTable et une manière de limiter mes passes sur tout les hashs à seulement quelques hashs.
 J'ai aussi vue que ca fonctionnait mieux sur un grand nombre de hash, j'espère votre dataset sera utiliser les grandes capacité de ce programme !
 
-Mais bien sur, après avoir fait un projet qui n'était pas le projet, il m'a fallu faire une restructuration complète de mon programme ┻━┻ ︵╰(°□°╰)
+Mais bien sur, après avoir fait un projet qui n'était pas le projet : 
+Restructuration complète de mon programme ┻━┻ ︵╰(°□°╰)
 
 Heureusement je pouvais garder ma structure et quelques unes / une partie de mes fonctions ┬─┬ノ( º _ ºノ)
 
