@@ -27,5 +27,6 @@ void free_Table(HashTable *hashTable) {
         entrie = suivant;
       }
     }
+    i++;
   }
 }

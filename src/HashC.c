@@ -1,145 +1,272 @@
 #include "HashC.h"
 
+HashTable *table_new(void) {
+    HashTable *hashTable = malloc(sizeof *hashTable);
+    return hashTable;
+}
+
 // read and load, reaload ? ca m'fait rire je gardes
 int reaload_Password(char *passwordsPath, EVP_MD *algo,
                      HashTable **ptrHashTable) {
-  FILE *passwordFile = fopen(passwordsPath, "r");
-  if (!passwordFile)
-    return -1;
+    FILE *passwordFile = fopen(passwordsPath, "r");
+    if (!passwordFile)
+        return -1;
 
-  // creation de la table si le fichier est ok
-  HashTable *hashTable = table_new();
-  char *ligne = NULL;
-  size_t cap = 0;
-  int ok = 1;
+    // creation de la table si le fichier est ok
+    HashTable *hashTable = table_new();
+    char *ligne = NULL;
+    size_t size = 0;
+    int ok = 1;
+    int nbLigne = 0;
+    while (ok && getline(&ligne, &size, passwordFile) != -1) {
+        ligne[strcspn(ligne, "\r\n")] = '\0';
+        if (ligne[0] == '\0')
+            continue;
+        if (add_Entry_to_Table(hashTable, ligne, algo) != 0) {
+            ok = 0;
+            nbLigne++;
+        }
+        if (nbLigne >= MAX_PASSWORD) {
+            printf("RAM Protection : Only %d password loaded.");
+            break;
+        }
+    }
 
-  while (ok && getline(&ligne, &cap, passwordFile) != -1) {
-    ligne[strcspn(ligne, "\r\n")] = '\0';
-    if (ligne[0] == '\0')
-      continue;
-    if (add_Entry_to_Table(hashTable, ligne, algo) != 0)
-      ok = 0;
-  }
+    free(ligne);
+    fclose(passwordFile);
 
-  free(ligne);
-  fclose(passwordFile);
-
-  if (!ok)
-    free_Table(hashTable);
-  else
-    *ptrHashTable = hashTable;
-  return ok;
+    if (!ok)
+        free_Table(hashTable);
+    else
+        *ptrHashTable = hashTable;
+    return ok;
 }
 
 int add_Entry_to_Table(HashTable *tableHash, char *mot, EVP_MD *algo) {
-  int ok;
-  Entry *entrie = calloc(1, sizeof *entrie);
-  if (entrie) {
-    entrie->word = strdup(mot);
-    if (!entrie->word ||
-        !hashWord(mot, entrie->hash, &entrie->sizeHash, algo)) {
-      free_Words(entrie);
-      ok = -1;
+    int ok = 0;
+    Entry *entrie = calloc(1, sizeof *entrie);
+    if (entrie) {
+        entrie->word = strdup(mot);
+        if (!entrie->word || !hashWord(mot, entrie->hash, &entrie->sizeHash, algo)) {
+            free_Words(entrie);
+            ok = -1;
+        }
+        if (ok) {
+            unsigned int index = get_field_index(entrie->hash);
+            entrie->suivant = tableHash->field[index];
+            tableHash->field[index] = entrie;
+        }
+    } else
+        ok = -1;
+    return ok;
+}
+
+int find_Hash(HashTable *tableHash, char *hashToFind) {
+    unsigned char hash[EVP_MAX_MD_SIZE];
+    int sizeHash = transformStringtoHex(hashToFind, strlen(hashSize), sizeof hash);
+    if (sizeHash < 16) {
+        printf("%s : hash invalide\n", hashToFind);
+        return -1;
     }
-    if (ok) {
-      unsigned int index = get_field_index(entrie->hash, entrie->sizeHash);
-      entrie->suivant = tableHash->field[index];
-      tableHash->field[index] = entrie;
+
+    unsigned int index = get_field_index(hash);
+
+    int found = 0;
+    for (Entry *entrie = tableHash->field[index]; entrie != NULL; entrie = entrie->suivant) {
+        if (entrie->sizeHash == (unsigned int) sizeHash &&
+            memcmp(entrie->hash, hash, sizeHash) == 0) {
+            printf("%s : %s\n", hashToFind, entrie->word);
+            found = 1;
+        }
     }
-  } else
-    ok = -1;
-  return ok;
+    if (!found)
+        printf("\n");
+
+    return found ? 0 : 1;
 }
 
 int create_Binary_Dictionary(char *fileName, HashTable *tableHash) {
-  FILE *dictionaryFile = fopen(fileName, "wb+");
-  int ok;
+    FILE *dictionaryFile = fopen(fileName, "wb+");
+    int ok = 0;
 
-  for (size_t i = 0; i < MAX_HASHTABLE; i++) {
-    Entry *entrie = tableHash->field[i];
-    while (ok && entrie) {
-      unsigned int sizeMot = (unsigned int)strlen(entrie->word);
-      unsigned char sizeHash = (unsigned char)entrie->sizeHash;
+    for (size_t i = 0; i < MAX_HASHTABLE; i++) {
+        Entry *entrie = tableHash->field[i];
+        while (ok && entrie) {
+            unsigned int sizeMot = (unsigned int) strlen(entrie->word);
+            unsigned char sizeHash = (unsigned char) entrie->sizeHash;
 
-      // OK = 1 si il a réussit à tout écrire
-      ok = fwrite(&sizeMot, sizeof sizeMot, 1, dictionaryFile) == 1 &&
-           fwrite(entrie->word, 1, sizeMot, dictionaryFile) == sizeMot &&
-           fwrite(&sizeHash, sizeof sizeHash, 1, dictionaryFile) == 1 &&
-           fwrite(entrie->hash, 1, sizeHash, dictionaryFile) == sizeHash;
-
-      entrie = entrie->suivant;
+            // OK = 1 si il a réussit à tout écrire
+            ok = fwrite(&sizeMot, sizeof sizeMot, 1, dictionaryFile) == 1 &&
+                 fwrite(entrie->word, 1, sizeMot, dictionaryFile) == sizeMot &&
+                 fwrite(&sizeHash, sizeof sizeHash, 1, dictionaryFile) == 1 &&
+                 fwrite(entrie->hash, 1, sizeHash, dictionaryFile) == sizeHash;
+            entrie = entrie->suivant;
+        }
     }
-  }
-  fclose(dictionaryFile);
-  return ok;
+    fclose(dictionaryFile);
+    return ok;
+}
+
+int load_Binary_Dictionnary(char *binaryPath, HashTable **ptrTable){
+    FILE *dictionaryFile = fopen(binaryPath, "rb");
+    if (dictionaryFile != NULL) {
+        return -1;
+    }
+    int ok = 1;
+    int field;
+
+    while (ok) {
+        Entry *entrie = malloc(sizeof(*entrie));
+        unsigned int sizeMot = 0;
+        unsigned char sizeHash = 0;
+
+        // OK = 1 si il a réussit à tout écrire
+        ok = fread(&sizeMot, sizeof(sizeMot), 1, dictionaryFile) == 1 &&
+             fread(entrie->word, 1, sizeMot, dictionaryFile) == sizeMot &&
+             fread(&sizeHash, sizeof(sizeHash), 1, dictionaryFile) == 1 &&
+             fread(entrie->hash, 1, sizeHash, dictionaryFile) == sizeHash;
+
+        if (ok) {
+            unsigned int index = get_field_index(entrie->hash);
+            if (index) {
+                entrie->suivant = tableHash->field[index];
+                tableHash->field[index] = entrie;
+            }
+            ok = 0;
+        }
+    }
+
+    fclose(dictionaryFile);
+    return ok;
 }
 
 int check_Generation(char *passwordsPath, char *outputPath, EVP_MD *algo) {
-  HashTable *hashTable = NULL;
-
-  if (reaload_Password(passwordsPath, algo, &hashTable) != 0) {
-    fprintf(stderr, "erreur lecture/hashage %s\n", passwordsPath);
-    return -1;
-  }
-
-  int retour = create_Binary_Dictionary(outputPath, hashTable);
-  free_Table(hashTable);
-
-  if (retour != 0) {
-    fprintf(stderr, "Erreur écriture %s\n", outputPath);
-    return -1;
-  }
-  printf("HashTable écrite dans %s\n", outputPath);
-  return 0;
-}
-int get_Option(int argc, char **argv) {
-  char help[] =
-      "Usage :\n./t3c G -i <dictionnaire> -o <t3c_output> [-a "
-      "<algo>]\n\t-i / --input <path> : "
-      "dictionnaire (obligatoire)\n\t-o / --output <path> : sortie T3C "
-      "(obligatoire)\n\t-a / --algo <nom> : algorithme (optionnel).\n\n./t3c L "
-      "-t <t3c_path>";
-
-  char *algo_name = argv[2];
-  char *input = NULL, *output = NULL, *algo = "MD5", *table = NULL;
-
-  struct option option_longue[] = {{"input", required_argument, 0, 'i'},
-                                   {"output", required_argument, 0, 'o'},
-                                   {"algo", required_argument, 0, 'a'},
-                                   {"table", required_argument, 0, 't'},
-                                   {0, 0, 0, 0}};
-
-  if (argc < 2) {
-    fprintf(stderr, "%s\n", help);
-    return 1;
-  }
-
-  char mode = (argv[1][1] == '\0') ? argv[1][0]
-                                   : '?'; // une seule lettre uniquement (G|L)
-
-  switch (mode) {
-  case 'G':
-    if (!input || !output) {
-      fprintf(stderr, "G : -i et -o sont obligatoires\n%s\n", help);
-      return 1;
+    HashTable *hashTable = NULL;
+    int retour = 1;
+    if (reaload_Password(passwordsPath, algo, &hashTable) != 0) {
+        fprintf(stderr, "erreur lecture/hashage %s\n", passwordsPath);
+        retour = -1;
     }
-    printf("Mode G : input=%s output=%s algo=%s\n", input, output, algo);
-    //
-    break;
-
-  case 'L':
-    if (!table) {
-      fprintf(stderr, "L : -t est obligatoire\n%s\n", help);
-      return 1;
+    if (retour != 0) {
+        retour = create_Binary_Dictionary(outputPath, hashTable);
+        free_Table(hashTable);
     }
-    printf("Mode L : table=%s\n", table);
-    // load_Table()
-    break;
-
-  default:
-    fprintf(stderr, "Mode inconnu : %s\n%s\n", argv[1], help);
-    return 1;
-  }
+    if (retour != 0) {
+        fprintf(stderr, "Erreur écriture %s\n", outputPath);
+        retour = -1;
+    }
+    if (retour != 0) {
+        printf("HashTable écrite dans %s\n", outputPath);
+        retour = 0;
+    }
+    return retour;
 }
 
-int main(int argc, char **argv) { get_Option(argc, argv); }
+int main(int argc, char **argv) {
+    /* MD5 par défaut, comme l'impose la consigne */
+    EVP_MD *algo = EVP_get_digestbyname("MD5");
+
+    char help[] =
+            "Usage :\n./t3c G -i <dictionnaire> -o <t3c_output> [-a <algo>]\n"
+            "\t-i / --input <path>  : dictionnaire (obligatoire)\n"
+            "\t-o / --output <path> : sortie T3C (obligatoire)\n"
+            "\t-a / --algo <nom>    : algorithme (optionnel) MD5 SHA1 SHA256 SHA512\n\n"
+            "./t3c L -t <t3c_path>";
+
+    if (argc < 2) {
+        fprintf(stderr, "%s\n", help);
+        return 1;
+    }
+
+    char *passwordPath = NULL, *binaryPath = NULL, *table = NULL;
+
+    struct option option_longue[] = {
+        {"input", required_argument, 0, 'i'},
+        {"output", required_argument, 0, 'o'},
+        {"algo", required_argument, 0, 'a'},
+        {"table", required_argument, 0, 't'},
+        {0, 0, 0, 0}
+    };
+
+    /* L'analyse des options commence après le mode (argv[1]) */
+    optind = 2;
+
+    int opt;
+    while ((opt = getopt_long(argc, argv, "i:o:a:t:", option_longue, NULL)) != -1) {
+        switch (opt) {
+            case 'i':
+                passwordPath = optarg;
+                break;
+            case 'o':
+                binaryPath = optarg;
+                break;
+            case 'a':
+                if (strcmp(optarg, "MD5") == 0 || strcmp(optarg, "SHA1") == 0 ||
+                    strcmp(optarg, "SHA256") == 0 || strcmp(optarg, "SHA512") == 0) {
+                    algo = EVP_get_digestbyname(optarg);
+                } else {
+                    fprintf(stderr, "Algorithme inconnu, MD5 par défaut\n");
+                    /* algo reste MD5 */
+                }
+                break;
+            case 't':
+                table = optarg;
+                break;
+            case '?':
+            default:
+                fprintf(stderr, "%s\n", help);
+                return 1;
+        }
+    }
+
+    /* Mode : une seule lettre, G ou L */
+    char mode = (argv[1][1] == '\0') ? argv[1][0] : '?';
+
+    switch (mode) {
+        case 'G':
+            if (!passwordPath || !binaryPath) {
+                fprintf(stderr, "G : -i et -o\n%s\n", help);
+                return 1;
+            }
+            /* log sur stderr : stdout doit rester propre */
+            fprintf(stderr, "Mode G : input=%s output=%s\n", passwordPath, binaryPath);
+
+            if (check_Generation(passwordPath, binaryPath, algo) != 0) {
+                fprintf(stderr, "Erreur génération\n");
+                return 1;
+            }
+            break;
+
+        case 'L': {
+            if (!table) {
+                fprintf(stderr, "L : -t <file> \n%s\n", help);
+                return 1;
+            }
+
+            HashTable *hashTable = NULL;
+            if (load_Binary_Dictionnary(table, &hashTable) != 0) {
+                fprintf(stderr, "erreur chargement %s\n", table);
+                return 1;
+            }
+
+            char *ligne = NULL;
+            size_t cap = 0;
+            while (getline(&ligne, &cap, stdin) != -1) { // lecture hash
+                ligne[strcspn(ligne, "\r\n")] = '\0';
+                if (ligne[0] == '\0')
+                    continue;
+                find_Hash(hashTable, ligne);
+            }
+
+            free(ligne);
+            free_Table(hashTable);
+            break;
+        }
+
+        default:
+            fprintf(stderr, "Erreur mode : %s\n%s\n", argv[1], help);
+            return 1;
+    }
+
+    return 0;
+}

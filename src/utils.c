@@ -1,8 +1,16 @@
 #include "HashC.h"
+
+unsigned int get_field_index(unsigned char *hash) {
+  unsigned int index = 0;
+  index = (unsigned int)hash[0] << 8;
+  index = index | hash[1];
+  return index;
+
+}
 /**
  * @brief Calcul du hash avec EVP (openssl)
  *
- * @param mot          mot du fichier à hasher
+ * @param mot mot du fichier à hasher
  * @param hash_du_mot  bufferdans lequel EVP_Digest écrit directement le hash
  * calculé
  * @param taille_hash  pointeur où EVP_Digest écrit la taille du hash calculé //
@@ -11,10 +19,9 @@
  *
  * @return 1 si le hash a été calculé avec succès, 0 sinon
  */
-int hashWord(char *mot, u_char *hash_du_mot, u_int *taille_hash,EVP_MD *algo_hashage) {
+int hashWord(char *mot, u_char *hash_du_mot, u_int *taille_hash,EVP_MD *algo) {
   int result = -1;
-  if (EVP_Digest(mot, strlen(mot), hash_du_mot, taille_hash, algo_hashage,
-                 NULL))
+  if (EVP_Digest(mot, strlen(mot), hash_du_mot, taille_hash, algo, NULL))
     result = 1;
   /*
   Retour en code int parce que EVP_Digest met le hash directement où il faut.
@@ -60,8 +67,8 @@ char LetterToHexa(char car) {
  * @param hashHex pointeur vers le résultat
  * @return void
  */
-void transformStringtoHex(char *hashString, char *hashHex) {
-  for (size_t i = 0; i < strlen(hashString); i += 2) {
+void transformStringtoHex(char *hashString, int hashSize, char *hashHex) {
+  for (size_t i = 0; i < hashSize; i += 2) {
     hashHex[i / 2] = (LetterToHexa(hashString[i]) << 4);
     hashHex[i / 2] = hashHex[i / 2] | LetterToHexa(hashString[i + 1]);
   }
