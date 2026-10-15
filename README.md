@@ -22,7 +22,9 @@ docker build -t hashc .
 docker run --rm -it hashc
 ```
 
-## Architecture
+## Technique
+
+- Algorithme de hashage intégré : MD2, MD4, MD5, MD5-SHA1, SHA1, SHA2-224, SHA2-256, SHA2-384, SHA2-512, SHA3-224, SHA3-256, SHA3-384, SHA3-512, SHAKE-128, SHAKE-256, KECCAK-224, KECCAK-256, KECCAK-384, KECCAK-512, BLAKE2b-512, BLAKE2s-256, MDC2, RIPEMD160, SM3, WHIRLPOOL
 
 - Table de hachage artisanal contenant des listes chainées en cas d'entré multiple. Index calculé à partir des deux premiers octets du condensat.
 
