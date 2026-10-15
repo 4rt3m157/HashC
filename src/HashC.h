@@ -17,7 +17,7 @@
 
 // CONSTANTES
 #define MAX_HASHTABLE 65536
-#define MAX_PASSWORD 2000000
+#define MAX_PASSWORD 15000000
 // STRUCT
 typedef struct Entry {
   char *word;

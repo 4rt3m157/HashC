@@ -256,8 +256,7 @@ int main(int argc, char **argv) {
       binaryPath = optarg;
       break;
     case 'a':
-      if (strcmp(optarg, "MD5") == 0 || strcmp(optarg, "SHA1") == 0 ||
-          strcmp(optarg, "SHA256") == 0 || strcmp(optarg, "SHA512") == 0) {
+      if(strcmp(optarg, "MD2") == 0 || strcmp(optarg, "MD4") == 0 || strcmp(optarg, "MD5") == 0 || strcmp(optarg, "MD5-SHA1") == 0 || strcmp(optarg, "SHA1") == 0 || strcmp(optarg, "SHA2-224") == 0 || strcmp(optarg, "SHA2-256") == 0 || strcmp(optarg, "SHA2-384") == 0 || strcmp(optarg, "SHA2-512") == 0 || strcmp(optarg, "SHA3-224") == 0 || strcmp(optarg, "SHA3-256") == 0 || strcmp(optarg, "SHA3-384") == 0 || strcmp(optarg, "SHA3-512") == 0 || strcmp(optarg, "SHAKE-128") == 0 || strcmp(optarg, "SHAKE-256") == 0 || strcmp(optarg, "KECCAK-224") == 0 || strcmp(optarg, "KECCAK-256") == 0 || strcmp(optarg, "KECCAK-384") == 0 || strcmp(optarg, "KECCAK-512") == 0 || strcmp(optarg, "BLAKE2b-512") == 0 || strcmp(optarg, "BLAKE2s-256") == 0 || strcmp(optarg, "MDC2") == 0 || strcmp(optarg, "RIPEMD160") == 0 || strcmp(optarg, "SM3") == 0 || strcmp(optarg, "WHIRLPOOL") == 0){
         algo = EVP_get_digestbyname(optarg);
       } else {
         fprintf(stderr, "Algorithme inconnu, MD5 par défaut\n");
